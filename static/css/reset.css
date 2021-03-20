@@ -96,3 +96,7 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/*解决谷歌报错问题*/
+*{
+  touch-action: none;
+}

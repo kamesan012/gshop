@@ -8,13 +8,31 @@
           <div class="profile_image">
             <i class="iconfont icon-person"></i>
           </div>
-          <div class="user-info">
+          <div class="user-info" v-if="!user.name&&!user.phone">
             <p class="user-info-top">登录/注册</p>
             <p>
               <span class="user-icon">
                 <i class="iconfont icon-shouji icon-mobile"></i>
               </span>
               <span class="icon-mobile-number">暂无绑定手机号</span>
+            </p>
+          </div>
+          <div class="user-info" v-if="user.name">
+            <p class="user-info-top">{{user.name}}</p>
+            <p>
+              <span class="user-icon">
+                <i class="iconfont icon-shouji icon-mobile"></i>
+              </span>
+              <span class="icon-mobile-number">暂无绑定手机号</span>
+            </p>
+          </div>
+          <div class="user-info" v-else>
+            <p class="user-info-top">{{user._id}}</p>
+            <p>
+              <span class="user-icon">
+                <i class="iconfont icon-shouji icon-mobile"></i>
+              </span>
+              <span class="icon-mobile-number">{{user.phone}}</span>
             </p>
           </div>
           <span class="arrow">
@@ -90,15 +108,34 @@
           </div>
         </a>
       </section>
+      <section class="profile_my_order border-1px">
+        <mt-button type="danger" style="width: 100%" @click="logOut()" v-if="user._id">退出登录</mt-button>
+      </section>
     </section>
   </div>
 </template>
 
 <script>
 import HeaderTop from '../../components/HeaderTop/HeaderTop'
+import {mapState} from 'vuex'
+import {MessageBox} from 'mint-ui'
 export default {
   components: {
     HeaderTop
+  },
+  computed: {
+    ...mapState(['user'])
+  },
+  methods: {
+    logOut () {
+      MessageBox.confirm('确定要退出吗？').then(
+        action => {
+          this.$store.dispatch('logOut')
+        },
+        action => {
+        }
+      )
+    }
   }
 }
 </script>

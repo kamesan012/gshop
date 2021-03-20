@@ -4,44 +4,46 @@
       <div class="login_header">
         <h2 class="login_logo">硅谷外卖</h2>
         <div class="login_header_title">
-          <a href="javascript:;" class="on">短信登录</a>
-          <a href="javascript:;">密码登录</a>
+          <a href="javascript:;" :class="{on: loginWay}" @click="loginWay=true">短信登录</a>
+          <a href="javascript:;" :class="{on: !loginWay}" @click="loginWay=false">密码登录</a>
         </div>
       </div>
       <div class="login_content">
         <form>
-          <div class="on">
+          <div :class="{on: loginWay}">
             <section class="login_message">
-              <input type="tel" maxlength="11" placeholder="手机号">
-              <button disabled="disabled" class="get_verification">获取验证码</button>
+              <input type="tel" maxlength="11" placeholder="手机号" v-model="phone">
+              <button :disabled="!rightPhone" class="get_verification" :class="{show:rightPhone}" @click.prevent="getCode()">
+                {{timingTime > 0 ? `还剩${timingTime}s可再发送` : '获取验证码'}}</button>
             </section>
             <section class="login_verification">
-              <input type="tel" maxlength="8" placeholder="验证码">
+              <input type="tel" maxlength="8" placeholder="验证码" v-model="code">
             </section>
             <section class="login_hint">
               温馨提示：未注册硅谷外卖帐号的手机号，登录时将自动注册，且代表已同意
               <a href="javascript:;">《用户服务协议》</a>
             </section>
           </div>
-          <div>
+          <div :class="{on: !loginWay}">
             <section>
               <section class="login_message">
-                <input type="tel" maxlength="11" placeholder="手机/邮箱/用户名">
+                <input type="tel" maxlength="11" placeholder="手机/邮箱/用户名" v-model="name">
               </section>
               <section class="login_verification">
-                <input type="tel" maxlength="8" placeholder="密码">
-                <div class="switch_button off">
-                  <div class="switch_circle"></div>
-                  <span class="switch_text">...</span>
+                <input type="password" maxlength="8" placeholder="密码" v-if="!showPass" v-model="pwd">
+                <input type="tel" maxlength="8" placeholder="密码" v-else v-model="pwd">
+                <div class="switch_button" @click="showPass=!showPass" :class="{on:showPass}">
+                  <div class="switch_circle" :class="{right:showPass}"></div>
+                  <span class="switch_text">{{showPass?'abc':''}}</span>
                 </div>
               </section>
               <section class="login_message">
-                <input type="text" maxlength="11" placeholder="验证码">
-                <img class="get_verification" src="./images/captcha.svg" alt="captcha">
+                <input type="text" maxlength="11" placeholder="验证码" v-model="captcha">
+                <img class="get_verification" :src="imgsrc" @click="changeCaptcha()">
               </section>
             </section>
           </div>
-          <button class="login_submit">登录</button>
+          <button class="login_submit" @click="Login()">登录</button>
         </form>
         <a href="javascript:;" class="about_us">关于我们</a>
       </div>
@@ -49,12 +51,127 @@
         <i class="iconfont icon-jiantou2"></i>
       </a>
     </div>
+    <AlertTip :alertText="alertText" v-show="alertShow" @closeTip="closeTip"/>
   </section>
 </template>
 
 <script>
-export default {
+import AlertTip from '../../AlertTip/AlertTip'
+// eslint-disable-next-line no-unused-vars
+import {reqLogin, reqTextCaptcha, reqPhoneLogin} from '../../api'
 
+export default {
+  data () {
+    return {
+      loginWay: true,
+      phone: '',
+      timingTime: 0,
+      showPass: false,
+      pwd: '',
+      code: '', // 短信验证码
+      name: '', // 用户名
+      captcha: '', // 图形验证码
+      alertText: '', // 提示文本
+      alertShow: false, // 是否显示警告框
+      imgsrc: 'http://localhost:4000/captcha' // 图片接口路径
+    }
+  },
+  components: {
+    AlertTip
+  },
+  computed: {
+    rightPhone () {
+      return /^1\d{10}$/.test(this.phone)
+    }
+  },
+  methods: {
+    async getCode () {
+      // 没定时时才能发送
+      if (!this.timingTime) {
+        this.timingTime = 30
+        this.intervalId = setInterval(() => {
+          this.timingTime--
+          if (this.timingTime <= 0) {
+            clearInterval(this.intervalId)
+          }
+        }, 1000)
+      }
+      // 异步请求验证码
+      const phone = this.phone
+      const result = await reqTextCaptcha(phone)
+      // 等于1说明发送失败
+      if (result.code === 1) {
+        this.showAlert(result.msg)
+        if (this.timingTime) {
+          this.timingTime = 0
+          clearInterval(this.intervalId)
+          this.intervalId = undefined
+        }
+      }
+    },
+    showAlert (alertText) {
+      this.alertShow = true
+      this.alertText = alertText
+    },
+    closeTip () {
+      this.alertShow = false
+      this.alertText = ''
+    },
+    async Login () {
+      let result
+      // 前台表单验证
+      if (this.loginWay) { // 短信登陆
+        const {phone, code} = this
+        if (!this.rightPhone) {
+          // 手机号不正确
+          this.showAlert('手机号不正确')
+          return null
+        } else if (!/^\d{6}$/.test(code)) {
+          // 验证必须是6位数字
+          this.showAlert('验证必须是6位数字')
+          return null
+        } else {
+          result = await reqPhoneLogin(phone, code)
+        }
+      } else { // 密码登陆
+        const {name, pwd, captcha} = this
+        if (!name) {
+          // 用户名必须指定
+          this.showAlert('用户名必须指定')
+          return null
+        } else if (!pwd) {
+          // 密码必须指定
+          this.showAlert('密码必须指定')
+          return null
+        } else if (!captcha) {
+          // 验证码必须指定
+          this.showAlert('验证码必须指定')
+          return null
+        } else {
+          result = await reqLogin({name, pwd, captcha})
+        }
+      }
+      if (this.timingTime) {
+        this.timingTime = 0
+        clearInterval(this.intervalId)
+        this.intervalId = undefined
+      }
+      if (result.code === 0) {
+        const user = result.data
+        // 把user保存到state
+        this.$store.dispatch('recordUser', user)
+        this.$router.replace('/profile')
+        // 把登录信息保存到cookies里
+      } else {
+        this.changeCaptcha()
+        this.showAlert(result.msg)
+        this.captcha = ''
+      }
+    },
+    changeCaptcha () {
+      this.imgsrc = 'http://localhost:4000/captcha?time=' + Date.now()
+    }
+  }
 }
 </script>
 
@@ -119,6 +236,8 @@ export default {
                 color #ccc
                 font-size 14px
                 background transparent
+                &.show
+                  color black
             .login_verification
               position relative
               margin-top 16px
@@ -158,6 +277,8 @@ export default {
                   background #fff
                   box-shadow 0 2px 4px 0 rgba(0,0,0,.1)
                   transition transform .3s
+                  &.right
+                    transform translateX(27px)
             .login_hint
               margin-top 12px
               color #999
